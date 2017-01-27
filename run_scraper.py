@@ -1,3 +1,7 @@
+"""
+Lauchpoint for the CALL scraper and data file generator
+
+"""
 
 import CALL
 

@@ -14,6 +14,11 @@ from pdfminer.layout import LAParams
 from PyPDF2 import PdfFileReader
 
 def extract_word_count_from_file_pdfminer(filename):
+    """
+    Uses PdfMiner to extract text, then uses a counter to count occurrences
+    :param filename: The filename to read
+    :return: A Counter of term - occurrences
+    """
     resources = PDFResourceManager()
     string_buffer = StringIO()
     codec = 'utf-8'
@@ -39,6 +44,11 @@ def extract_word_count_from_file_pdfminer(filename):
     return determine_counts(string_buffer.getvalue())
 
 def extract_word_count_from_file_pypdf2(filename):
+    """
+    Uses PyPDF2 to extract text
+    :param filename: The file to read
+    :return: A Counter of term - occurrences
+    """
     with open(filename, 'rb') as file:
         pdf_doc = PdfFileReader(file, strict=False)
 
@@ -53,6 +63,11 @@ def extract_word_count_from_file_pypdf2(filename):
         return word_counts
 
 def extract_word_count_from_file(filename):
+    """
+    Extracts word counts from a file. First attempts pdfminer. If it doesn't work, tries pypdf2.
+    :param filename: The file to read
+    :return: A Counter of term - occurrences, or None if neither library could read the file
+    """
     try:
         return extract_word_count_from_file_pdfminer(filename)
     except:
@@ -64,6 +79,11 @@ def extract_word_count_from_file(filename):
             return None
 
 def determine_counts(text):
+    """
+    Determines the term counts of a piece of text
+    :param text: The text to analyze
+    :return: A Counter of term - occurrences
+    """
     word_count = Counter()
     word_pair_count = Counter()
 
@@ -78,6 +98,13 @@ def determine_counts(text):
     return word_count
 
 def remove_unwanted_char(text, unwanted='()"', puncuation='!?;:'):
+    """
+    Removes unwanted characters and puncuation
+    :param text: Text to process
+    :param unwanted: Characters to remove
+    :param puncuation: Characters to turn into periods (.)
+    :return: A string with unwanted characters removed and puncuation turned into .
+    """
     new_text = text.lower().replace('\n', ' ')
     nex_text = new_text.replace('- ', '')
 
@@ -89,6 +116,12 @@ def remove_unwanted_char(text, unwanted='()"', puncuation='!?;:'):
     return new_text
 
 def test_valid(word):
+    """
+    Tests if a term is valid. A valid term is at least 2, but less than 20 characters, containing only alphanumeric
+    characters (but not all numbers - that is a number not a term).
+    :param word: The term to check
+    :return: True if the term is valid, false if not
+    """
     if len(word) < 2 or len(word) > 20:
         return False
 

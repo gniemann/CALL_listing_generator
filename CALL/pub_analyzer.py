@@ -1,3 +1,10 @@
+"""
+This module contains everything required for generating the normalized term scores and similiar pubs
+used by the searching mechanism. The analyzer builds a term-document matrix both by reading from the database,
+and by downloading and 'reading' new pubs. The term-document matrix is written to the database, and can be recreated
+later. The 'threshold' passed to the Publication.to_dict function refers to the normalized term score computed here
+"""
+
 from collections import Counter
 from concurrent import futures
 from math import log, sqrt
@@ -12,8 +19,21 @@ from CALL.models import Publication, SearchTerm, SearchTerms
 
 
 class Document:
+    """
+    This class represents a single document. Properties are provided for accessing the raw term frequency and
+    normalized term scores in the document.
+    """
     @property
     def euclidean_normalized(self):
+        """
+        Returns the Euclidean normalized term vector. That is, an n-dimensional vector (where n is the number of terms
+        in the collection's vocabulary), where each term's freqency in the document is divided by the Euclidean
+        distance of the vector.
+
+        normalized = Vterms / |Vterms|, where Vterms is the terms vector, and |Vterms| = sqrt(sum of squares of the
+        number of occurrences of each term)
+        :return: An array of values, indexed to the collection's vocabulary
+        """
         if self._euclidean_normalized is None:
             self._generate_euclidean_normalized()
 
@@ -21,6 +41,10 @@ class Document:
 
     @property
     def normalized_term_scores(self):
+        """
+        Returns a list of Euclidean normalized term weights, but only for terms which occur in this document
+        :return: Returns is list of tuples in the form (term, weight) for each term in the document
+        """
         if not self._normalized_term_scores:
             scores = []
             for (term, val) in zip(self.collection.vocabulary, self.euclidean_normalized):
@@ -34,12 +58,23 @@ class Document:
 
     @property
     def tf_idf(self):
+        """
+        Returns the term frequency - inverse document frequency score for all terms in the document
+
+        tf-idf (for a term t) = # of occurrences of T in doc * log (number of docs / number of docs where T occurrs)
+        :return: A dictionary, where terms are the keys and tf-idf weights are the values
+        """
         if self._tf_idf is None:
             self._generate_tf_idf()
 
         return self._tf_idf
 
     def __init__(self, filename=None):
+        """
+        Initalize a document. If filename is provided, opens the file and extracts word counts from the file.
+        If no filename, creates an empty document
+        :param filename: File to open and extract
+        """
         self.filename = filename
 
         if filename:
@@ -54,27 +89,57 @@ class Document:
         self.similiar_docs = None
 
     def __contains__(self, item):
+        """
+        Checks if the term occurs in the document
+        :param item: The term to check for
+        :return: True if term is in the document; false otherwise
+        """
         return item in self.term_frequency
 
     def __len__(self):
+        """
+        The total number of terms in the document
+        :return: The number of terms (non-distinct) in the document
+        """
         return sum(self.term_frequency.values())
 
     def __hash__(self):
+        """
+        Hashes on the filename
+        :return: returns the hash of the filename
+        """
         return hash(self.filename)
 
     def tf_idf_score(self, term):
+        """
+        Returns the term freqency - inverse document freqency of the term (see tf_idf property above)
+        :param term: The term
+        :return: The tf-idf val (or 0 if the term is not in the document)
+        """
         if term not in self.term_frequency:
             return 0
         return self.term_frequency[term] * self.collection.inverse_document_freq(term)
 
     def similiar(self, other):
+        """
+        Generates a similiarity value between this document and other document.
+        The similiarity value is the dot product of the Euclidean normalized vectors of this document and the other doc
+        :param other: The other document (as a Document)
+        :return: The similiarity score, as a floating point number
+        """
         return self.euclidean_normalized.dot(other.euclidean_normalized)
 
     def _generate_tf_idf(self):
+        """
+        Generates the tf_idf dictionary. See tf_idf property above for explenation
+        """
         self._tf_idf = {term: self.tf_idf_score(term) for term in self.term_frequency}
 
 
     def _generate_euclidean_normalized(self):
+        """
+        Generates the euclidean normalized vector for the document. See the property above for a description
+        """
         # calculate the Euclidean distance - the sqrt of the sum of squares of tf-idf values
         distance = sqrt(sum(x * x for x in self.tf_idf.values()))
 
@@ -89,6 +154,11 @@ class Document:
         self._euclidean_normalized = vector
 
     def top_terms(self, threshold=0.1):
+        """
+        Returns a list of the top weighted terms in the document, with their weights
+        :param threshold: The threshold to use. Term weights above this threshold will be in the returned results
+        :return: A list of (term, weight) tuples for all terms with weights above the threshold
+        """
         terms = []
 
         for term, val in self.normalized_term_scores:
@@ -99,8 +169,19 @@ class Document:
         return terms
 
 class DocumentCollection:
+    """
+    This class represents a collection of documents. It provides methods for determining the tf-idf values for all
+    documents, and similiarity scores between each pair of documents
+
+    It is also a context manager. When in a context (with statement), add documents to the collection with add_document
+    When it leaves the context, it will automatically calculate the tf_idf for all documents
+    """
     @property
     def vocabulary(self):
+        """
+        The list of all terms occurring anywhere in the collection.
+        :return: A list of terms, sorted in lexigraphic order
+        """
         if not self._vocabulary:
             self._vocabulary = sorted(self.document_term_count.keys())
 
@@ -113,9 +194,18 @@ class DocumentCollection:
         self._vocabulary = None
 
     def __iter__(self):
+        """
+        Iterates over the documents in the collection
+        :return: An iterator over the documents in the collection
+        """
         return iter(self.documents)
 
     def add_document(self, other):
+        """
+        Adds a new document. Updates the document term count for all the terms in the new document
+        :param other: The new Document being added
+        :return: No return; but updates the document_term_count
+        """
         self.documents.append(other)
         other.collection = self
 
@@ -127,6 +217,12 @@ class DocumentCollection:
         self._vocabulary = None
 
     def inverse_document_freq(self, term):
+        """
+        Determines the inverse document frequency of a term.
+        idf = log (number of documents / number of documents which contain the term)
+        :param term: The specified term
+        :return: The idf of the term
+        """
         if term not in self.idf:
             doc_term_cnt = self.document_term_count[term]
             val = 0
@@ -141,10 +237,23 @@ class DocumentCollection:
         return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        When exiting a context, updates the idf for all terms in the vocabulary
+        :param exc_type:
+        :param exc_val:
+        :param exc_tb:
+        :return:
+        """
         numDocs = len(self.documents)
         self.idf = {term: log(numDocs / occurrences) for (term, occurrences) in self.document_term_count.items()}
 
     def determine_similiar(self, threshold=0.5):
+        """
+        Determines document similiarities between each pair of documents
+        :param threshold: The threshold for similiarity. Documents are 'similiar' if their similiarity score is above
+        the threshold
+        :return: A dictionary, keyed on Documents, where each value is a list of similiar Documents
+        """
         similiar_docs_dict = {}
 
         for doc in self.documents:
@@ -157,6 +266,11 @@ class DocumentCollection:
             similiar_docs_dict[doc] = similiar_docs
 
 def process_response(response):
+    """
+    Takes in a response object, saves the content and creates a new Document from it
+    :param response: A response object, containing a downloaded PDF
+    :return: A new Document object, from the response's content; also writes the PDF to file
+    """
     if not response or response.status_code >= 400 or not response.content:
         return None
 
@@ -169,6 +283,11 @@ def process_response(response):
     return Document(filename)
 
 def process_document(filename):
+    """
+    Attempts to create a Document from a file
+    :param filename: the filename of the PDF file
+    :return: A Document, or None if an exception occurs
+    """
     try:
         return Document(filename)
     except:
@@ -176,6 +295,11 @@ def process_document(filename):
         return None
 
 def queue_downloads(pubs):
+    """
+    Creates and yields Futures for downloading every pub listed in pubs
+    :param pubs: A list of Publications to download
+    :returns: yields future objects
+    """
     responses = []
     with futures.ThreadPoolExecutor(max_workers=20) as executor:
         for pub in pubs:
@@ -184,9 +308,14 @@ def queue_downloads(pubs):
             responses.append(future)
 
     for future in responses:
-        yield future
+        yield future.result()
 
 def queue_processing_responses(responses):
+    """
+    Takes an iterator of response Futures and yields an iterator of pending Document futures
+    :param responses: An iterator produced from queue_downloads
+    :return: An iterator of document Futures
+    """
     new_docs = []
     with futures.ProcessPoolExecutor() as executor:
         for future in responses:
@@ -199,6 +328,11 @@ def queue_processing_responses(responses):
         yield future
 
 def queue_load_files(pubs):
+    """
+    Like queue_processing_responses, but with local files instead
+    :param pubs: A list of pubs to load from file
+    :return: An iterator over document futures
+    """
     new_docs = []
     with futures.ProcessPoolExecutor() as executor:
         for pub in pubs:
@@ -206,6 +340,11 @@ def queue_load_files(pubs):
             yield future
 
 def load_documemts(pubs):
+    """
+    Either retrieves pubs from the internet, or loads them from file. Returns an iterator of Documents
+    :param pubs: A list of Publications
+    :return: an iterator over Documents
+    """
     downloads = []
     dir_list = os.listdir()
     with futures.ThreadPoolExecutor() as executor:
@@ -232,6 +371,11 @@ def load_documemts(pubs):
         yield future.result()
 
 def load_doc_from_database(pub):
+    """
+    Loads the term freqency dictionary for a publication from the database
+    :param pub: The Publication to load
+    :return: A Document object, with the term-freqency dictionary populated
+    """
     print("Loading {} from database...".format(pub.title))
     doc = Document()
     doc.filename = pub.publication_url.split('/')[-1]
@@ -242,24 +386,29 @@ def load_doc_from_database(pub):
     return doc
 
 def load_docs_from_database(pubs):
+    """
+    Loads a list of Publications from the database
+    :param pubs: A list of Publications to load into Document objects
+    :return: An iterator over new Document objects
+    """
+    # can't thread this due to SQLite lock
     print('Loading from database...')
-    pending = []
+    for pub in pubs:
+        yield load_doc_from_database(pub)
 
-    with futures.ThreadPoolExecutor as executor:
-        for pub in pubs:
-            future = executor.submit(load_doc_from_database, pub)
-            pending.append(future)
-
-    for future in pending:
-        yield future
-
-
-SAVE_TO_DATABASE = True
 
 SIMILIAR_THRESHOLD = .15
 TOP_TERMS_THRESHOLD = .025
 
 def run_analyzer(new_pubs=None, session=None):
+    """
+    Entry point into this module. Builds the document-term matrix (either loads from the database, or builds from
+    analyzing the files. Determines term weights for each document, and document similiarities, then writes to the
+    database.
+    :param new_pubs: a list of new Publications, which will be downloaded if they are not found locally
+    :param session: The database session
+    :return: None; but updates the session (does NOT commit changes)
+    """
     docs = DocumentCollection()
 
     pubs = session.query(Publication).all()
@@ -267,9 +416,12 @@ def run_analyzer(new_pubs=None, session=None):
     if not new_pubs:
         new_pubs = []
 
+    # these are the existing Publications, which are already in the database and have already been analyzed
     pubs_to_load = [p for p in pubs if p not in new_pubs]
     loaded_docs = load_docs_from_database(pubs_to_load)
 
+    # adds all the documents to the DocumentCollection. The context manager ensures that the idf is automatically
+    # generated at the end of the with block
     docs_to_pubs = {}
     with docs:
         for pub, doc in zip(new_pubs, load_documemts(new_pubs)):
@@ -286,6 +438,8 @@ def run_analyzer(new_pubs=None, session=None):
     docs.determine_similiar(SIMILIAR_THRESHOLD)
     print("Total terms in vocabulary: ", len(docs.vocabulary))
 
+    # ensure that all terms are in the database, and build a dictionary where the key is the term (as a string),
+    # and the value is the database row object
     print("Building term to DB object linkage...")
     term_to_obj = {}
     for term in docs.vocabulary:
@@ -298,6 +452,8 @@ def run_analyzer(new_pubs=None, session=None):
         term_to_obj[term] = term_obj
 
     top_terms = set()
+    # Iterate over the documents to write the results to the database (the term-freqencies and term weights)
+    # This updates term-weights for existing documents
     for doc in docs:
         pub = docs_to_pubs[doc]
         print("Doc filename: ", doc.filename)
@@ -339,9 +495,6 @@ def run_analyzer(new_pubs=None, session=None):
 
     print("Total top terms: ", len(top_terms))
 
-
-if __name__ == '__main__':
-    run_analyzer()
 
 
 

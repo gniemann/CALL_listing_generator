@@ -1,3 +1,7 @@
+"""
+Database models
+"""
+
 from datetime import datetime
 from contextlib import contextmanager
 
@@ -62,7 +66,7 @@ class Publication(BaseModel):
             'image_url': self.image_url,
             'publication_url': self.publication_url,
             'type': self.type.type,
-            'terms': [t.term.term for t in self.terms if t.weight > threshold],
+            'terms': ' '.join([t.term.term for t in self.terms if t.weight > threshold]),
             'similiar': [d.id for d in self.similiar]
         }
 

@@ -1,0 +1,7 @@
+sqlalchemy
+alambic
+requests
+lxml
+pdfminer3k
+PyPDF2
+numpy
