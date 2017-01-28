@@ -69,6 +69,7 @@ def extract_word_count_from_file(filename):
     :return: A Counter of term - occurrences, or None if neither library could read the file
     """
     try:
+        print("Processing ", filename)
         return extract_word_count_from_file_pdfminer(filename)
     except:
         print("PDFMiner unable to process {}. Switching to PyPDF2...".format(filename))

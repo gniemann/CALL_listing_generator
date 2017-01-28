@@ -6,15 +6,13 @@ This includes running the analyzer to generate search terms and similiarities be
 
 import json
 from datetime import datetime
+import os
 
 import requests
 from lxml import html
 
 from CALL import pub_analyzer
 from CALL.models import open_session, Publication, PublicationType
-
-# This is the URL to the publications page on the CALL public website
-PUBLICATION_URL = 'http://usacac.army.mil/organizations/mccoe/call/publications'
 
 def download_publications_page(pubs_url):
     """
@@ -94,7 +92,7 @@ def parse_page(page):
 
     return pubs
 
-def update_database(scraped_pubs, session):
+def update_database(scraped_pubs, session, similar_threshold):
     """
     Updates the database with the info scraped from the page. Only makes a new entry if the pub isn't already in
     the database; however, for any old pub, data is overwritten if newer data was on the page
@@ -130,10 +128,10 @@ def update_database(scraped_pubs, session):
 
     if new_pubs_added:
         print("Running the analyzer...")
-        pub_analyzer.run_analyzer(new_pubs_added, session)
+        pub_analyzer.run_analyzer(new_pubs_added, session, similar_threshold)
 
 
-def generate_pubs_json(session):
+def generate_pubs_json(session, service, term_threshold):
     """
     Generates the publication data file
     :param session: The database session
@@ -142,7 +140,7 @@ def generate_pubs_json(session):
     pubs = [p.to_dict(0.025) for p in session.query(Publication).all()]
 
     results = {
-        'service': 'https://centerarmylessonslearned.herokuapp.com/updates',
+        'service': service,
         'messages': [],
         'publications': pubs
     }
@@ -150,7 +148,10 @@ def generate_pubs_json(session):
     with open('updates.json', 'w') as file:
         json.dump(results, file, indent=2)
 
-def scrape():
+    print("updates.json written to {}".format(os.getcwd()))
+
+def scrape(service='http://usacac.army.mil/sites/default/files/documents/call/updates.json', similar_threshold=0.15,
+           term_threshold=0.025, publication_url='http://usacac.army.mil/organizations/mccoe/call/publications'):
     """
     Entry point to the module. Scrapes all data from the publication URL and updates the database (including running
     the publication analyzer). Writes changes to the database and writes the data file.
@@ -158,9 +159,10 @@ def scrape():
     Uses a context manager for the session - if an exception is thrown during the update, all updates are thrown out
     :return: None; the database is written if updates were successful
     """
-    scraped_pubs = parse_page(download_publications_page(PUBLICATION_URL))
+    print("Loading publications page...")
+    scraped_pubs = parse_page(download_publications_page(publication_url))
     with open_session() as session:
-        update_database(scraped_pubs, session)
-        generate_pubs_json(session)
+        update_database(scraped_pubs, session, similar_threshold)
+        generate_pubs_json(session, service, term_threshold)
 
 

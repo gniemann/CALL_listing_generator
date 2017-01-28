@@ -1,5 +1,5 @@
 """
-This module contains everything required for generating the normalized term scores and similiar pubs
+This module contains everything required for generating the normalized term scores and similar pubs
 used by the searching mechanism. The analyzer builds a term-document matrix both by reading from the database,
 and by downloading and 'reading' new pubs. The term-document matrix is written to the database, and can be recreated
 later. The 'threshold' passed to the Publication.to_dict function refers to the normalized term score computed here
@@ -86,7 +86,7 @@ class Document:
         self._tf_idf = None
         self._euclidean_normalized = None
         self._normalized_term_scores = None
-        self.similiar_docs = None
+        self.similar_docs = None
 
     def __contains__(self, item):
         """
@@ -120,12 +120,12 @@ class Document:
             return 0
         return self.term_frequency[term] * self.collection.inverse_document_freq(term)
 
-    def similiar(self, other):
+    def similar(self, other):
         """
-        Generates a similiarity value between this document and other document.
-        The similiarity value is the dot product of the Euclidean normalized vectors of this document and the other doc
+        Generates a similarity value between this document and other document.
+        The similarity value is the dot product of the Euclidean normalized vectors of this document and the other doc
         :param other: The other document (as a Document)
-        :return: The similiarity score, as a floating point number
+        :return: The similarity score, as a floating point number
         """
         return self.euclidean_normalized.dot(other.euclidean_normalized)
 
@@ -171,7 +171,7 @@ class Document:
 class DocumentCollection:
     """
     This class represents a collection of documents. It provides methods for determining the tf-idf values for all
-    documents, and similiarity scores between each pair of documents
+    documents, and similarity scores between each pair of documents
 
     It is also a context manager. When in a context (with statement), add documents to the collection with add_document
     When it leaves the context, it will automatically calculate the tf_idf for all documents
@@ -247,23 +247,23 @@ class DocumentCollection:
         numDocs = len(self.documents)
         self.idf = {term: log(numDocs / occurrences) for (term, occurrences) in self.document_term_count.items()}
 
-    def determine_similiar(self, threshold=0.5):
+    def determine_similar(self, threshold=0.5):
         """
-        Determines document similiarities between each pair of documents
-        :param threshold: The threshold for similiarity. Documents are 'similiar' if their similiarity score is above
+        Determines document similarities between each pair of documents
+        :param threshold: The threshold for similarity. Documents are 'similar' if their similarity score is above
         the threshold
-        :return: A dictionary, keyed on Documents, where each value is a list of similiar Documents
+        :return: A dictionary, keyed on Documents, where each value is a list of similar Documents
         """
-        similiar_docs_dict = {}
+        similar_docs_dict = {}
 
         for doc in self.documents:
-            similiar_docs = []
+            similar_docs = []
             for other_doc in (d for d in self.documents if d is not doc):
-                if doc.similiar(other_doc) >= threshold:
-                    similiar_docs.append(other_doc)
+                if doc.similar(other_doc) >= threshold:
+                    similar_docs.append(other_doc)
 
-            doc.similiar_docs = similiar_docs
-            similiar_docs_dict[doc] = similiar_docs
+            doc.similar_docs = similar_docs
+            similar_docs_dict[doc] = similar_docs
 
 def process_response(response):
     """
@@ -396,14 +396,10 @@ def load_docs_from_database(pubs):
     for pub in pubs:
         yield load_doc_from_database(pub)
 
-
-SIMILIAR_THRESHOLD = .15
-TOP_TERMS_THRESHOLD = .025
-
-def run_analyzer(new_pubs=None, session=None):
+def run_analyzer(new_pubs=None, session=None, similar_threshold=0.15, term_threshold=0.025):
     """
     Entry point into this module. Builds the document-term matrix (either loads from the database, or builds from
-    analyzing the files. Determines term weights for each document, and document similiarities, then writes to the
+    analyzing the files. Determines term weights for each document, and document similarities, then writes to the
     database.
     :param new_pubs: a list of new Publications, which will be downloaded if they are not found locally
     :param session: The database session
@@ -435,7 +431,7 @@ def run_analyzer(new_pubs=None, session=None):
             docs_to_pubs[doc] = pub
             print('Adding DB loaded document'.format(doc.filename))
 
-    docs.determine_similiar(SIMILIAR_THRESHOLD)
+    docs.determine_similar(similar_threshold)
     print("Total terms in vocabulary: ", len(docs.vocabulary))
 
     # ensure that all terms are in the database, and build a dictionary where the key is the term (as a string),
@@ -460,20 +456,20 @@ def run_analyzer(new_pubs=None, session=None):
         print("Pub title: ", pub.title)
         print("Total terms in doc: ", len(doc.term_frequency))
 
-        doc_terms = doc.top_terms(TOP_TERMS_THRESHOLD)
+        doc_terms = doc.top_terms(term_threshold)
 
-        print("Number of top terms (threshold {}: {}".format(TOP_TERMS_THRESHOLD, len(doc_terms)))
+        print("Number of top terms (threshold {}): {}".format(term_threshold, len(doc_terms)))
         pprint(doc_terms)
 
         top_terms.update(set(t for (t,v) in doc_terms))
 
-        print("Similiar pubs:")
-        for similiar in doc.similiar_docs:
-            similiar_pub = docs_to_pubs[similiar]
+        print("similar pubs:")
+        for similar in doc.similar_docs:
+            similar_pub = docs_to_pubs[similar]
 
-            if similiar_pub and similiar_pub not in pub.similiar:
-                print(similiar_pub.title)
-                pub.similiar.append(similiar_pub)
+            if similar_pub and similar_pub not in pub.similar:
+                print(similar_pub.title)
+                pub.similar.append(similar_pub)
 
 
         # set the search terms - first get the term (or create it), than set the linkage

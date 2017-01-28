@@ -31,7 +31,7 @@ def open_session():
 BaseModel = declarative_base()
 
 # Define similiar publiciations table
-similiar_publications = Table('SimiliarPublications', BaseModel.metadata,
+similar_publications = Table('SimilarPublications', BaseModel.metadata,
                                  Column('left_id', Integer, ForeignKey('publication.id'), primary_key=True),
                                  Column('right_id', Integer, ForeignKey('publication.id'), primary_key=True))
 
@@ -46,10 +46,10 @@ class Publication(BaseModel):
     publication_url = Column(String(255))
     type_id = Column(Integer, ForeignKey('publication_type.id'))
     terms = relationship('SearchTerms', back_populates='publication')
-    similiar = relationship('Publication', secondary=similiar_publications,
-                           primaryjoin=similiar_publications.c.left_id == id,
-                           secondaryjoin=similiar_publications.c.right_id == id,
-                            foreign_keys=[similiar_publications.c.left_id, similiar_publications.c.right_id])
+    similar = relationship('Publication', secondary=similar_publications,
+                           primaryjoin=similar_publications.c.left_id == id,
+                           secondaryjoin=similar_publications.c.right_id == id,
+                            foreign_keys=[similar_publications.c.left_id, similar_publications.c.right_id])
 
     def __init__(self, **kwargs):
         self.last_modified = datetime.utcnow()
@@ -67,7 +67,7 @@ class Publication(BaseModel):
             'publication_url': self.publication_url,
             'type': self.type.type,
             'terms': ' '.join([t.term.term for t in self.terms if t.weight > threshold]),
-            'similiar': [d.id for d in self.similiar]
+            'similar': [d.id for d in self.similar]
         }
 
     def __repr__(self):

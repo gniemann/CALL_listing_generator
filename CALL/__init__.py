@@ -5,9 +5,14 @@ to call the scraper.scrape() func.
 
 The output of this is the updates.json file
 """
-
+import sys
 
 from CALL import scraper
 
-def main():
-    scraper.scrape()
+def main(*args, **kwargs):
+    try:
+        scraper.scrape(*args, **kwargs)
+        return True
+    except:
+        print("Oops, something went wrong: ", sys.exc_info()[0])
+        return False

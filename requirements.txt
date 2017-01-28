@@ -1,5 +1,5 @@
 sqlalchemy
-alambic
+alembic
 requests
 lxml
 pdfminer3k
