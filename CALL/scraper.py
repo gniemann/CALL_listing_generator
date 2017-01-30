@@ -3,7 +3,6 @@ This module handles retrieving the CALL website and scraping publication data fr
 This includes running the analyzer to generate search terms and similiarities between publications
 """
 
-
 import json
 from datetime import datetime
 import os
@@ -13,6 +12,7 @@ from lxml import html
 
 from CALL import pub_analyzer
 from CALL.models import open_session, Publication, PublicationType
+
 
 def download_publications_page(pubs_url):
     """
@@ -31,6 +31,7 @@ def download_publications_page(pubs_url):
     print("Page retrieval successful")
     return pubs_request.text
 
+
 def fix_link(link):
     """
     Fixes the URL on links. Apparently a script at load time converted the link paths to URLs
@@ -38,6 +39,7 @@ def fix_link(link):
     :return: A string with the path fixed, ready for retrieval
     """
     return link.replace('pubs_page_files', 'sites/default/files/covers')
+
 
 def parse_page(page):
     """
@@ -92,6 +94,7 @@ def parse_page(page):
 
     return pubs
 
+
 def update_database(scraped_pubs, session, similar_threshold):
     """
     Updates the database with the info scraped from the page. Only makes a new entry if the pub isn't already in
@@ -99,6 +102,7 @@ def update_database(scraped_pubs, session, similar_threshold):
 
     Concludes by calling the pub analyzer with a list of newly listed publications.
 
+    :param similar_threshold:
     :param scraped_pubs: A list of pubs
     :param session: The database session
     :return: No return, but uncommitted changes are made to the session
@@ -134,10 +138,12 @@ def update_database(scraped_pubs, session, similar_threshold):
 def generate_pubs_json(session, service, term_threshold):
     """
     Generates the publication data file
+    :param service:
+    :param term_threshold:
     :param session: The database session
     :return: No return; but the updates.json file is written to the current working directory
     """
-    pubs = [p.to_dict(0.025) for p in session.query(Publication).all()]
+    pubs = [p.to_dict(term_threshold) for p in session.query(Publication).all()]
 
     results = {
         'service': service,
@@ -149,6 +155,7 @@ def generate_pubs_json(session, service, term_threshold):
         json.dump(results, file, indent=2)
 
     print("updates.json written to {}".format(os.getcwd()))
+
 
 def scrape(service='http://usacac.army.mil/sites/default/files/documents/call/updates.json', similar_threshold=0.15,
            term_threshold=0.025, publication_url='http://usacac.army.mil/organizations/mccoe/call/publications'):
@@ -164,5 +171,3 @@ def scrape(service='http://usacac.army.mil/sites/default/files/documents/call/up
     with open_session() as session:
         update_database(scraped_pubs, session, similar_threshold)
         generate_pubs_json(session, service, term_threshold)
-
-

@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 engine = create_engine('sqlite:///call.db', echo=False)
 Session = sessionmaker(bind=engine)
 
+
 @contextmanager
 def open_session():
     try:
@@ -32,8 +33,9 @@ BaseModel = declarative_base()
 
 # Define similiar publiciations table
 similar_publications = Table('SimilarPublications', BaseModel.metadata,
-                                 Column('left_id', Integer, ForeignKey('publication.id'), primary_key=True),
-                                 Column('right_id', Integer, ForeignKey('publication.id'), primary_key=True))
+                             Column('left_id', Integer, ForeignKey('publication.id'), primary_key=True),
+                             Column('right_id', Integer, ForeignKey('publication.id'), primary_key=True))
+
 
 class Publication(BaseModel):
     __tablename__ = 'publication'
@@ -49,7 +51,7 @@ class Publication(BaseModel):
     similar = relationship('Publication', secondary=similar_publications,
                            primaryjoin=similar_publications.c.left_id == id,
                            secondaryjoin=similar_publications.c.right_id == id,
-                            foreign_keys=[similar_publications.c.left_id, similar_publications.c.right_id])
+                           foreign_keys=[similar_publications.c.left_id, similar_publications.c.right_id])
 
     def __init__(self, **kwargs):
         self.last_modified = datetime.utcnow()
@@ -73,6 +75,7 @@ class Publication(BaseModel):
     def __repr__(self):
         return '<Publication {} - {}'.format(self.id, self.title)
 
+
 class PublicationType(BaseModel):
     __tablename__ = 'publication_type'
 
@@ -80,12 +83,14 @@ class PublicationType(BaseModel):
     type = Column(String(255))
     publications = relationship('Publication', backref='type')
 
+
 class SearchTerm(BaseModel):
     __tablename__ = 'search_term'
 
     id = Column(Integer, primary_key=True)
     term = Column(String(50))
     publications = relationship('SearchTerms', back_populates='term')
+
 
 class SearchTerms(BaseModel):
     __tablename__ = 'search_terms'
@@ -95,4 +100,3 @@ class SearchTerms(BaseModel):
     weight = Column(Float)
     term = relationship('SearchTerm', back_populates='publications')
     publication = relationship('Publication', back_populates='terms')
-

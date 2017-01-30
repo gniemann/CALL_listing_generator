@@ -6,17 +6,20 @@ import configparser
 import os
 import sys
 import logging
+import multiprocessing
 
 import CALL
 
+logging.basicConfig(level=logging.ERROR)
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.ERROR)
     data_dir = ''
     db_file = '/call.db'
     settings_file = '/settings.ini'
 
     # fix windows specifics
     if sys.platform.startswith('win'):
+        multiprocessing.freeze_support()
         # fix the terminal so we can print unicode
         import win_unicode_console
         win_unicode_console.enable()
@@ -37,7 +40,7 @@ if __name__ == '__main__':
                 outfile.write(infile.read())
 
         with open('settings.ini', 'r') as infile:
-            with open(data_dir + settings_file) as outfile:
+            with open(data_dir + settings_file, 'w') as outfile:
                 outfile.write(infile.read())
 
     except FileExistsError:

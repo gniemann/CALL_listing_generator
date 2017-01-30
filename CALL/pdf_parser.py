@@ -2,16 +2,18 @@
 This module is responsible for loading a PDF file (by filename) and returning a word count of all words in the file
 '''
 
-
 from io import StringIO
 from collections import Counter
+import logging
 
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
-from pdfminer.pdfparser import PDFDocument, PDFParser
+from pdfminer.pdfparser import PDFDocument, PDFParser, logger as PDFParserLogger
 from pdfminer.layout import LAParams
 
 from PyPDF2 import PdfFileReader
+
+PDFParserLogger.setLevel(logging.ERROR)
 
 def extract_word_count_from_file_pdfminer(filename):
     """
@@ -21,7 +23,6 @@ def extract_word_count_from_file_pdfminer(filename):
     """
     resources = PDFResourceManager()
     string_buffer = StringIO()
-    codec = 'utf-8'
     layout = LAParams()
     device = TextConverter(resources, string_buffer, laparams=layout)
 
@@ -43,6 +44,7 @@ def extract_word_count_from_file_pdfminer(filename):
     string_buffer.seek(0)
     return determine_counts(string_buffer.getvalue())
 
+
 def extract_word_count_from_file_pypdf2(filename):
     """
     Uses PyPDF2 to extract text
@@ -56,11 +58,12 @@ def extract_word_count_from_file_pypdf2(filename):
 
         for page in pdf_doc.pages:
             try:
-                word_counts = word_counts + determine_counts(page.extractText())
+                word_counts += determine_counts(page.extractText())
             except:
                 pass
 
         return word_counts
+
 
 def extract_word_count_from_file(filename):
     """
@@ -79,6 +82,7 @@ def extract_word_count_from_file(filename):
             print("Unable to extract text from file ", filename)
             return None
 
+
 def determine_counts(text):
     """
     Determines the term counts of a piece of text
@@ -86,7 +90,6 @@ def determine_counts(text):
     :return: A Counter of term - occurrences
     """
     word_count = Counter()
-    word_pair_count = Counter()
 
     processed_text = remove_unwanted_char(text)
     # split on the sentences
@@ -95,8 +98,8 @@ def determine_counts(text):
 
         word_count.update(words)
 
-
     return word_count
+
 
 def remove_unwanted_char(text, unwanted='()"', puncuation='!?;:'):
     """
@@ -107,7 +110,7 @@ def remove_unwanted_char(text, unwanted='()"', puncuation='!?;:'):
     :return: A string with unwanted characters removed and puncuation turned into .
     """
     new_text = text.lower().replace('\n', ' ')
-    nex_text = new_text.replace('- ', '')
+    new_text = new_text.replace('- ', ' ')
 
     for ch in unwanted:
         new_text = new_text.replace(ch, ' ')
@@ -115,6 +118,7 @@ def remove_unwanted_char(text, unwanted='()"', puncuation='!?;:'):
         new_text = new_text.replace(ch, '.')
 
     return new_text
+
 
 def test_valid(word):
     """
