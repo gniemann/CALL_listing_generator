@@ -30,8 +30,6 @@ if sys.platform.startswith('win'):
 
 import multiprocessing
 
-import CALL
-
 logging.basicConfig(level=logging.ERROR)
 
 if __name__ == '__main__':
@@ -96,6 +94,9 @@ if __name__ == '__main__':
     if term_input and float(term_input) > 0.0:
         term_threshold = float(term_input)
 
+    # can't import CALL until after we know the directory is set up
+    import CALL
+
     # call the main function, on success, update all options
     if CALL.main(service=service, similar_threshold=similar_threshold, term_threshold=term_threshold):
         settings['SETTINGS']['service'] = service
@@ -104,9 +105,8 @@ if __name__ == '__main__':
         with open('settings.ini', 'w') as outfile:
             settings.write(outfile)
 
-        print("GREAT SUCCESS! Goodbye...")
+        print("GREAT SUCCESS!")
     else:
-        print("EPIC FAIL! Goodbye...")
+        print("EPIC FAIL!")
 
-
-
+    input("Press [ENTER] to exit...")
