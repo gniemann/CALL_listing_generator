@@ -68,7 +68,7 @@ def parse_page(page):
             link = pub_block.find('a')
             pub['publication_url'] = link.get('href')
             pub['image_url'] = link.find('img').get('src')
-            pub['title'] = link.find('strong').text
+            pub['title'] = link.find('strong').text.strip()
 
             meta_data = pub_block.find_class('pub-meta')[0]
             pub['date_published'] = datetime.strptime(meta_data[0].text, '%d %b %Y').date()
@@ -109,6 +109,7 @@ def update_database(scraped_pubs, session, similar_threshold):
     """
     new_pubs_added = []
     scraped_pubs.sort(key=lambda x: x['date_published'])
+    current_pub_ids = []
     for pub in scraped_pubs:
         type_obj = session.query(PublicationType).filter_by(type=pub['type']).one_or_none()
         if not type_obj:
@@ -116,8 +117,9 @@ def update_database(scraped_pubs, session, similar_threshold):
             session.add(type_obj)
         pub['type'] = type_obj
 
-        old_pub = session.query(Publication).filter_by(title=pub['title']).one_or_none()
+        old_pub = session.query(Publication).filter(Publication.title.ilike('%{}%'.format(pub['title']))).one_or_none()
         if old_pub:
+            current_pub_ids.append(old_pub.id)
             print('Updating pub {}: {}'.format(old_pub.id, old_pub.title))
             for attr, value in pub.items():
                 if attr in old_pub.__dict__ and old_pub.__dict__[attr] != value:
@@ -129,11 +131,24 @@ def update_database(scraped_pubs, session, similar_threshold):
             new_pub = Publication(**pub)
             new_pubs_added.append(new_pub)
             session.add(new_pub)
+            current_pub_ids.append(new_pub.id)
 
     if new_pubs_added:
         print("Running the analyzer...")
         pub_analyzer.run_analyzer(new_pubs_added, session, similar_threshold)
 
+    # check if anything needs to be deleted
+    for pub in session.query(Publication).all():
+        if pub.id not in current_pub_ids:
+            delete_pub(session, pub)
+
+
+def delete_pub(session, pub):
+    print("Deleting pub {}".format(pub.title))
+    for otherPub in pub.similar:
+        otherPub.similar.remove(pub)
+
+    session.delete(pub)
 
 def generate_pubs_json(session, service, term_threshold):
     """

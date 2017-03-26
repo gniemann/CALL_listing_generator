@@ -47,7 +47,7 @@ class Publication(BaseModel):
     image_url = Column(String(255))
     publication_url = Column(String(255))
     type_id = Column(Integer, ForeignKey('publication_type.id'))
-    terms = relationship('SearchTerms', back_populates='publication')
+    terms = relationship('SearchTerms', back_populates='publication', cascade='delete, delete-orphan')
     similar = relationship('Publication', secondary=similar_publications,
                            primaryjoin=similar_publications.c.left_id == id,
                            secondaryjoin=similar_publications.c.right_id == id,
